@@ -1,0 +1,152 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Docker Image"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Environment to deploy"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: "Docker image tag to deploy"
+        required: true
+        default: latest
+
+permissions:
+  contents: read
+  packages: read
+  deployments: write
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.event.inputs.target_environment }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_TAG: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.event.inputs.image_tag }}
+
+jobs:
+  deploy-staging:
+    name: Deploy to staging
+    if: >-
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'develop') ||
+      (github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.target_environment == 'staging')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.app_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy and verify health
+        id: deploy
+        run: |
+          chmod +x deploy.sh
+          ./deploy.sh "${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}" staging
+          echo "app_url=http://127.0.0.1:8000" >> "${GITHUB_OUTPUT}"
+
+      - name: Write deployment summary
+        if: always()
+        run: |
+          {
+            echo "## Staging deployment"
+            echo "- Status: ${{ job.status }}"
+            echo "- Image: ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "- Environment: staging"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Send deployment notification
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ job.status }}"
+          MESSAGE="Deployment to staging finished with status: ${STATUS}"
+          if [ -n "${SLACK_WEBHOOK_URL}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"${MESSAGE}\"}" \
+              "${SLACK_WEBHOOK_URL}"
+          else
+            echo "SLACK_WEBHOOK_URL is not configured. Notification skipped."
+          fi
+
+  deploy-production:
+    name: Deploy to production
+    if: >-
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main') ||
+      (github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.target_environment == 'production')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.app_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy and verify health
+        id: deploy
+        run: |
+          chmod +x deploy.sh
+          ./deploy.sh "${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}" production
+          echo "app_url=http://127.0.0.1:8000" >> "${GITHUB_OUTPUT}"
+
+      - name: Write deployment summary
+        if: always()
+        run: |
+          {
+            echo "## Production deployment"
+            echo "- Status: ${{ job.status }}"
+            echo "- Image: ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "- Environment: production"
+            echo "- Approval: handled by GitHub Environment protection rules"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Send deployment notification
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ job.status }}"
+          MESSAGE="Deployment to production finished with status: ${STATUS}"
+          if [ -n "${SLACK_WEBHOOK_URL}" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"${MESSAGE}\"}" \
+              "${SLACK_WEBHOOK_URL}"
+          else
+            echo "SLACK_WEBHOOK_URL is not configured. Notification skipped."
+          fi

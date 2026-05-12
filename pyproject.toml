@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cicd-pipeline-demo"
+version = "0.1.0"
+description = "A small FastAPI application for demonstrating CI/CD with GitHub Actions."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Student" }
+]
+dependencies = [
+  "fastapi>=0.110.0",
+  "uvicorn[standard]>=0.27.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "black>=24.0.0",
+  "httpx>=0.27.0",
+  "pytest>=8.0.0",
+  "pytest-cov>=5.0.0",
+  "ruff>=0.4.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.coverage.run]
+branch = true
+source = ["src/cicd_pipeline_demo"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

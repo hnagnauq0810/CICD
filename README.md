@@ -1,0 +1,330 @@
+# CI/CD Pipeline Demo
+
+This repository is the submission for the **Building a Complete CI/CD Pipeline with GitHub Actions** assignment.
+
+The project contains a small FastAPI application, automated linting, matrix testing, dependency caching, test artifacts, Codecov integration, Docker image build and push to GitHub Container Registry, container scanning, and environment-based deployment workflows.
+
+## Project structure
+
+```text
+.
+├── .github/workflows/
+│   ├── ci.yml
+│   ├── docker.yml
+│   └── deploy.yml
+├── src/cicd_pipeline_demo/
+│   ├── __init__.py
+│   └── main.py
+├── tests/
+│   └── test_main.py
+├── Dockerfile
+├── deploy.sh
+├── pyproject.toml
+└── README.md
+```
+
+## Local development
+
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Install the application and development dependencies:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+Run linting and formatting checks:
+
+```bash
+ruff check .
+black --check .
+```
+
+Run tests with coverage:
+
+```bash
+pytest --cov=src/cicd_pipeline_demo --cov-report=term-missing --cov-report=xml --cov-report=html --junitxml=test-results.xml
+```
+
+Run the application locally:
+
+```bash
+uvicorn cicd_pipeline_demo.main:app --host 0.0.0.0 --port 8000
+```
+
+Health check endpoint:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## CI pipeline
+
+The CI workflow is defined in `.github/workflows/ci.yml`.
+
+It runs on:
+
+- Pushes to `main` and `develop`
+- Pull requests targeting `main`
+- Manual runs through `workflow_dispatch`
+
+The workflow has two main jobs:
+
+1. `lint`
+   - Installs dependencies
+   - Runs Ruff
+   - Runs Black in check mode
+
+2. `test`
+   - Depends on `lint` through `needs: lint`
+   - Runs only after linting succeeds
+   - Runs tests with pytest
+   - Generates terminal, XML, and HTML coverage reports
+   - Generates JUnit XML test results
+   - Uploads coverage and test results as GitHub Actions artifacts
+   - Uploads coverage data to Codecov
+
+## Matrix testing
+
+The `test` job uses a build matrix:
+
+```yaml
+strategy:
+  fail-fast: false
+  matrix:
+    python-version: ["3.10", "3.11", "3.12"]
+    os: [ubuntu-latest, macos-latest]
+```
+
+This creates 6 test combinations:
+
+| Python | OS |
+|---|---|
+| 3.10 | ubuntu-latest |
+| 3.10 | macos-latest |
+| 3.11 | ubuntu-latest |
+| 3.11 | macos-latest |
+| 3.12 | ubuntu-latest |
+| 3.12 | macos-latest |
+
+`fail-fast: false` is used so that all matrix jobs continue running even if one combination fails. This makes debugging easier because all failing environments are shown in a single workflow run.
+
+### When to use `exclude`
+
+Use `exclude` when a specific OS and Python version combination is unsupported, too expensive, or unnecessary.
+
+Example:
+
+```yaml
+exclude:
+  - python-version: "3.10"
+    os: macos-latest
+```
+
+## Dependency caching
+
+The CI workflow caches pip dependencies with `actions/cache`.
+
+Cache key:
+
+```yaml
+key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+```
+
+This means the cache is separated by operating system and automatically invalidated when `pyproject.toml` changes.
+
+### Cache timing measurement
+
+Record the real build times from the GitHub Actions UI after running the workflow at least twice.
+
+| Run Type | Build Time |
+|---|---:|
+| Without cache | Replace with first run time |
+| With cache | Replace with second run time |
+
+## Artifacts and coverage
+
+The CI workflow uploads:
+
+- `coverage.xml`
+- `htmlcov/`
+- `test-results.xml`
+
+These artifacts can be downloaded from the GitHub Actions workflow summary page.
+
+Codecov integration is configured with:
+
+```yaml
+uses: codecov/codecov-action@v4
+```
+
+For private repositories, add this repository secret:
+
+```text
+CODECOV_TOKEN
+```
+
+For public repositories, Codecov may work without a token depending on your Codecov configuration.
+
+## Docker build and push pipeline
+
+The Docker workflow is defined in `.github/workflows/docker.yml`.
+
+It runs when source-related files change on `main` or `develop`:
+
+- `src/**`
+- `tests/**`
+- `pyproject.toml`
+- `Dockerfile`
+- `.dockerignore`
+- `.github/workflows/docker.yml`
+
+Documentation-only changes such as README edits do not trigger the Docker build.
+
+The workflow:
+
+1. Checks out the repository
+2. Sets up Docker Buildx
+3. Logs in to GitHub Container Registry with `${{ secrets.GITHUB_TOKEN }}`
+4. Builds the Docker image
+5. Tags the image with:
+   - Full commit SHA
+   - `latest` for `main`
+   - `develop` for `develop`
+6. Pushes the image to GitHub Container Registry
+7. Scans the image with Trivy
+
+Image examples:
+
+```text
+ghcr.io/<owner>/<repo>:<commit-sha>
+ghcr.io/<owner>/<repo>:latest
+ghcr.io/<owner>/<repo>:develop
+```
+
+## Docker local usage
+
+Build locally:
+
+```bash
+docker build -t cicd-pipeline-demo .
+```
+
+Run locally:
+
+```bash
+docker run --rm -p 8000:8000 cicd-pipeline-demo
+```
+
+Check health:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## Deployment strategy
+
+The deployment workflow is defined in `.github/workflows/deploy.yml`.
+
+It is triggered after the Docker workflow completes successfully, or manually with `workflow_dispatch`.
+
+Deployment rules:
+
+| Environment | Trigger | Approval |
+|---|---|---|
+| staging | Docker workflow success from `develop` | No manual approval |
+| production | Docker workflow success from `main` | Manual approval required |
+
+Production approval is configured through GitHub Environment protection rules.
+
+## Required GitHub environment setup
+
+Create two GitHub Environments:
+
+1. `staging`
+2. `production`
+
+For `production`, enable:
+
+- Required reviewers
+- Optional wait timer if your instructor requires it
+- Deployment branch rule for `main` if desired
+
+Path in GitHub:
+
+```text
+Repository Settings -> Environments -> New environment
+```
+
+## Deployment script
+
+The deployment script is `deploy.sh`.
+
+It:
+
+1. Pulls the selected Docker image
+2. Removes any existing container for the target environment
+3. Runs the new container
+4. Performs a health check against `/health`
+5. Reports success or failure
+
+Manual usage:
+
+```bash
+chmod +x deploy.sh
+./deploy.sh ghcr.io/<owner>/<repo>:latest production
+```
+
+## Deployment flow diagram
+
+```mermaid
+flowchart LR
+    A[Code Push] --> B[CI Tests]
+    B --> C[Build Image]
+    C --> D[Deploy Staging]
+    D --> E[Manual Approval]
+    E --> F[Deploy Production]
+```
+
+## Screenshots to include in the final submission
+
+Add screenshots to your submission or README showing:
+
+- Successful CI workflow run
+- Matrix jobs across Python versions and operating systems
+- Cache hit in workflow logs
+- Uploaded coverage and test result artifacts
+- Codecov report
+- Docker workflow success
+- Docker image in GitHub Container Registry
+- Trivy scan step
+- Staging deployment success
+- Production deployment waiting for or passing manual approval
+
+## Assignment checklist
+
+- [x] CI workflow runs on push and pull requests
+- [x] Lint job runs Ruff and Black
+- [x] Test job runs after lint using `needs: lint`
+- [x] Matrix testing across Python 3.10, 3.11, 3.12
+- [x] Matrix testing across Ubuntu and macOS
+- [x] `fail-fast: false` configured
+- [x] Dependency caching implemented
+- [x] Cache key uses `pyproject.toml` hash
+- [x] Coverage artifacts uploaded
+- [x] JUnit XML test results uploaded
+- [x] Codecov integration configured
+- [x] Docker image builds and pushes to GHCR
+- [x] Image tagged with commit SHA and `latest`
+- [x] Docker build uses path filters
+- [x] Trivy image scanning configured
+- [x] Staging deployment configured
+- [x] Production deployment configured with GitHub Environment approval
+- [x] Health check verification implemented
+- [x] Deployment flow documented with diagram

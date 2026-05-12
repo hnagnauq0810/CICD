@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+src/cicd_pipeline_demo/__init__.py
+src/cicd_pipeline_demo/main.py
+src/cicd_pipeline_demo.egg-info/PKG-INFO
+src/cicd_pipeline_demo.egg-info/SOURCES.txt
+src/cicd_pipeline_demo.egg-info/dependency_links.txt
+src/cicd_pipeline_demo.egg-info/requires.txt
+src/cicd_pipeline_demo.egg-info/top_level.txt
+tests/test_main.py
