@@ -129,15 +129,14 @@ exclude:
 
 ## Dependency caching
 
-The CI workflow caches pip dependencies with `actions/cache`.
-
-Cache key:
+The CI workflow caches pip dependencies with `actions/setup-python` using:
 
 ```yaml
-key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+cache: pip
+cache-dependency-path: pyproject.toml
 ```
 
-This means the cache is separated by operating system and automatically invalidated when `pyproject.toml` changes.
+This keeps separate caches per OS and Python version, and automatically invalidates cache when `pyproject.toml` changes.
 
 ### Cache timing measurement
 
@@ -163,6 +162,8 @@ Codecov integration is configured with:
 ```yaml
 uses: codecov/codecov-action@v4
 ```
+
+To reduce CI time, Codecov upload runs only on one matrix leg (`ubuntu-latest`, Python `3.11`) while all matrix legs still produce local artifacts.
 
 For private repositories, add this repository secret:
 
@@ -316,7 +317,7 @@ Add screenshots to your submission or README showing:
 - [x] Matrix testing across Ubuntu and macOS
 - [x] `fail-fast: false` configured
 - [x] Dependency caching implemented
-- [x] Cache key uses `pyproject.toml` hash
+- [x] Cache dependency path uses `pyproject.toml`
 - [x] Coverage artifacts uploaded
 - [x] JUnit XML test results uploaded
 - [x] Codecov integration configured

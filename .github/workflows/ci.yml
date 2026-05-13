@@ -60,16 +60,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/pip
-            ~/Library/Caches/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
       - name: Install dependencies
         run: |
@@ -97,6 +89,9 @@ jobs:
           if-no-files-found: error
 
       - name: Upload coverage to Codecov
+        if: >-
+          matrix.os == 'ubuntu-latest' &&
+          matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
