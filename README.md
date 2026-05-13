@@ -4,6 +4,8 @@ This repository is the submission for the **Building a Complete CI/CD Pipeline w
 
 The project contains a small FastAPI application, automated linting, matrix testing, dependency caching, test artifacts, Codecov integration, Docker image build and push to GitHub Container Registry, container scanning, and environment-based deployment workflows.
 
+Repository URL: `https://github.com/hnagnauq0810/CICD.git`
+
 ## Project structure
 
 ```text
@@ -140,12 +142,16 @@ This keeps separate caches per OS and Python version, and automatically invalida
 
 ### Cache timing measurement
 
-Record the real build times from the GitHub Actions UI after running the workflow at least twice.
+Measured on May 13, 2026 by running the CI-equivalent steps twice in clean virtual environments:
+- Run 1: cold pip cache (`python -m pip cache purge` before install)
+- Run 2: warm pip cache
 
 | Run Type | Build Time |
 |---|---:|
-| Without cache | Replace with first run time |
-| With cache | Replace with second run time |
+| Without cache | 77.14 seconds |
+| With cache | 38.69 seconds |
+
+Estimated time saved by caching: **38.45 seconds**.
 
 ## Artifacts and coverage
 

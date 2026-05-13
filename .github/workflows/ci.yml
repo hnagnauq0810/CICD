@@ -70,7 +70,12 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest             --cov=src/cicd_pipeline_demo             --cov-report=term-missing             --cov-report=xml:coverage.xml             --cov-report=html:htmlcov             --junitxml=test-results.xml
+          pytest \
+            --cov=src/cicd_pipeline_demo \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --junitxml=test-results.xml
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
