@@ -2,7 +2,6 @@
 
 from fastapi import FastAPI
 
-
 app = FastAPI(
     title="CI/CD Pipeline Demo",
     description="A small Python API for demonstrating CI/CD with GitHub Actions.",

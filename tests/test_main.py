@@ -4,7 +4,6 @@ from fastapi.testclient import TestClient
 
 from cicd_pipeline_demo.main import add, app
 
-
 client = TestClient(app)
 
 
