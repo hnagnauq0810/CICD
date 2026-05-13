@@ -30,4 +30,6 @@ def health_check() -> dict[str, str]:
 def add_numbers(left: int, right: int) -> dict[str, int]:
     """Return the result of adding two numbers."""
     return {"result": add(left, right)}
+
+
 # develop deployment trigger
