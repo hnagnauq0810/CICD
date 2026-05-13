@@ -65,12 +65,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Pull image with retry before scan
+        run: |
+          IMAGE="${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          for i in 1 2 3 4 5; do
+            if docker pull "${IMAGE}"; then
+              exit 0
+            fi
+            echo "Pull attempt ${i} failed, retrying in 5 seconds..."
+            sleep 5
+          done
+          echo "Failed to pull ${IMAGE} after retries."
+          exit 1
+
       - name: Run Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
+          scan-type: image
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: table
+          format: sarif
+          output: trivy-results.sarif
           exit-code: "0"
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
